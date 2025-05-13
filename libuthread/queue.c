@@ -33,6 +33,7 @@ int queue_delete(queue_t queue, void *data)
 	/* TODO Phase 1 */
 }
 
+/* Provides a generic way to call a custom function on each item currently enqueued in the queue */
 int queue_iterate(queue_t queue, queue_func_t func)
 {
 	/* TODO Phase 1 */
