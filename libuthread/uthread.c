@@ -10,33 +10,148 @@
 #include "uthread.h"
 #include "queue.h"
 
-struct uthread_tcb {
-	/* TODO Phase 2 */
+// Thread state variable
+enum thread_state {
+	READY,
+	RUNNING,
+	BLOCKED,
+	ZOMBIE
 };
+
+static queue_t ready_queue;
+static queue_t blocked_queue;
+static uthread_tcb_t *current_thread = NULL;
+
+/* Struct that should hold context of a thread, info about its stack, info about its state. */
+typedef struct uthread_tcb {
+	void *stack;
+	uthread_ctx_t context;
+	enum thread_state state;
+} uthread_tcb_t;
 
 struct uthread_tcb *uthread_current(void)
 {
-	/* TODO Phase 2/3 */
+	return current_thread;
 }
 
 void uthread_yield(void)
 {
-	/* TODO Phase 2 */
+	// preempt_disable();
+
+	// Gets currently running thread and adds it back to ready queue if it is running
+	uthread_tcb_t *curr = uthread_current();
+	if (curr->state == RUNNING) {
+		curr->state = READY;
+		queue_enqueue(ready_queue, curr);
+	}
+
+	uthread_tcb_t *next;
+	if (queue_dequeue(ready_queue, (void**)&next) < 0) {
+		exit(0); // If no more threads are left
+	}
+	next->state = RUNNING;
+	uthread_ctx_switch(&curr->context, &next->context);
 }
 
 void uthread_exit(void)
 {
-	/* TODO Phase 2 */
+	// preempt_disable();
+
+	current_thread->state = ZOMBIE;
+	uthread_ctx_destroy_stack(current_thread->stack);
+	free(current_thread);
+
+	uthread_tcb_t *next_thread;
+	if (queue_dequeue(ready_queue, (void**)&next_thread) < 0) {
+		exit(0); // If no more threads are left
+	}
+
+	next_thread->state = RUNNING;
+	current_thread = next_thread;
+
+	// preempt_enable();
+
+	setcontext(&current_thread->context);
+	
+	assert(0); // this will never return
 }
 
+/* Creates a thread with a function for the thread to run (and args) */
 int uthread_create(uthread_func_t func, void *arg)
 {
-	/* TODO Phase 2 */
+	// Allocates memory for thread control block
+	uthread_tcb_t *tcb = malloc(sizeof(uthread_tcb_t));
+	if (tcb == NULL) {
+		return -1;
+	}
+	
+	// Allocates memory for thread stack
+	tcb->stack = uthread_ctx_alloc_stack();
+	if (tcb->stack == NULL) {
+		free(tcb); // If stack allocation fails, free memory allocated to TCB
+		return -1;
+	}
+
+	// Takes args (uthread_ctx_t *uctx, void *top_of_stack, uthread_func_t func, void *arg)
+	uthread_ctx_init(&tcb->context, tcb->stack, func, arg);
+	tcb->state = READY;
+	
+	// Stops if ready queue somehow wasn't initialized
+	if (ready_queue == NULL) {
+		return -1;
+	}
+
+	// Adds thread to ready queue
+	queue_enqueue(ready_queue, tcb);
+	
+	return 0;
 }
 
+/* Creates first user thread */
 int uthread_run(bool preempt, uthread_func_t func, void *arg)
 {
-	/* TODO Phase 2 */
+	// if the thread is already running
+	if (ready_queue != NULL) {
+		return -1;
+	}
+
+	ready_queue = queue_create();
+	if (!ready_queue) {
+		return -1; // if queue_create() fails
+	}
+	
+	blocked_queue = queue_create();
+	if (!blocked_queue) {
+		return -1;
+	}
+
+	uthread_tcb_t main_thread;
+	main_thread.stack = NULL;
+	main_thread.state = RUNNING;
+	getcontext(&main_thread.context); // saving main context
+
+	current_thread = &main_thread;
+
+	if (uthread_create(func, arg) < 0) {
+		return -1;
+	}
+
+	if (preempt) {
+		preempt_start(true);
+	}
+
+	while (queue_length(ready_queue) > 0) {
+		uthread_yield();
+	}
+
+	if (preempt) {
+		preempt_stop();
+	}
+
+	ready_queue = NULL;
+	current_thread = NULL;
+
+	return 0;
 }
 
 void uthread_block(void)
