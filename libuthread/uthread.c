@@ -19,15 +19,15 @@ enum thread_state {
 };
 
 static queue_t ready_queue;
-static queue_t blocked_queue;
-static uthread_tcb_t *current_thread = NULL;
 
 /* Struct that should hold context of a thread, info about its stack, info about its state. */
-typedef struct uthread_tcb {
+struct uthread_tcb {
 	void *stack;
 	uthread_ctx_t context;
 	enum thread_state state;
-} uthread_tcb_t;
+};
+
+static struct uthread_tcb *current_thread = NULL;
 
 struct uthread_tcb *uthread_current(void)
 {
@@ -39,13 +39,13 @@ void uthread_yield(void)
 	// preempt_disable();
 
 	// Gets currently running thread and adds it back to ready queue if it is running
-	uthread_tcb_t *curr = uthread_current();
+	struct uthread_tcb *curr = uthread_current();
 	if (curr->state == RUNNING) {
 		curr->state = READY;
 		queue_enqueue(ready_queue, curr);
 	}
 
-	uthread_tcb_t *next;
+	struct uthread_tcb *next;
 	if (queue_dequeue(ready_queue, (void**)&next) < 0) {
 		exit(0); // If no more threads are left
 	}
@@ -61,7 +61,7 @@ void uthread_exit(void)
 	uthread_ctx_destroy_stack(current_thread->stack);
 	free(current_thread);
 
-	uthread_tcb_t *next_thread;
+	struct uthread_tcb *next_thread;
 	if (queue_dequeue(ready_queue, (void**)&next_thread) < 0) {
 		exit(0); // If no more threads are left
 	}
@@ -80,7 +80,7 @@ void uthread_exit(void)
 int uthread_create(uthread_func_t func, void *arg)
 {
 	// Allocates memory for thread control block
-	uthread_tcb_t *tcb = malloc(sizeof(uthread_tcb_t));
+	struct uthread_tcb *tcb = malloc(sizeof(*tcb));
 	if (tcb == NULL) {
 		return -1;
 	}
@@ -119,13 +119,8 @@ int uthread_run(bool preempt, uthread_func_t func, void *arg)
 	if (!ready_queue) {
 		return -1; // if queue_create() fails
 	}
-	
-	blocked_queue = queue_create();
-	if (!blocked_queue) {
-		return -1;
-	}
 
-	uthread_tcb_t main_thread;
+	struct uthread_tcb main_thread;
 	main_thread.stack = NULL;
 	main_thread.state = RUNNING;
 	getcontext(&main_thread.context); // saving main context
@@ -137,7 +132,7 @@ int uthread_run(bool preempt, uthread_func_t func, void *arg)
 	}
 
 	if (preempt) {
-		preempt_start(true);
+		//preempt_start(true);
 	}
 
 	while (queue_length(ready_queue) > 0) {
@@ -145,7 +140,7 @@ int uthread_run(bool preempt, uthread_func_t func, void *arg)
 	}
 
 	if (preempt) {
-		preempt_stop();
+		//preempt_stop();
 	}
 
 	ready_queue = NULL;
@@ -156,11 +151,14 @@ int uthread_run(bool preempt, uthread_func_t func, void *arg)
 
 void uthread_block(void)
 {
-	/* TODO Phase 3 */
+	struct uthread_tcb *curr = uthread_current();
+	curr->state = BLOCKED;
+	uthread_yield();
 }
 
 void uthread_unblock(struct uthread_tcb *uthread)
 {
-	/* TODO Phase 3 */
+	uthread->state = READY;
+	queue_enqueue(ready_queue, uthread);
 }
 

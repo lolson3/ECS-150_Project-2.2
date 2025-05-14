@@ -18,7 +18,7 @@ struct queue {
 queue_t queue_create(void)
 {
 	// Allocating space for the queue structure.
-	queue_t q = malloc(sizeof(queue_t));
+	queue_t q = malloc(sizeof(*q));
 	if (q == NULL) {
 		return NULL;
 	}

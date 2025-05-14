@@ -1,5 +1,5 @@
 lib := libuthread.a
-objs := queue.o
+objs := queue.o uthread.o sem.o context.o
 CC := gcc
 CFLAGS := -Wall -Wextra -Werror -g
 AR := ar
