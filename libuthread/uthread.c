@@ -55,25 +55,23 @@ void uthread_yield(void)
 
 void uthread_exit(void)
 {
-	// preempt_disable();
-
 	current_thread->state = ZOMBIE;
-	uthread_ctx_destroy_stack(current_thread->stack);
-	free(current_thread);
+
+	if (current_thread->stack != NULL) {
+		uthread_ctx_destroy_stack(current_thread->stack);
+		free(current_thread);
+	}
 
 	struct uthread_tcb *next_thread;
 	if (queue_dequeue(ready_queue, (void**)&next_thread) < 0) {
-		exit(0); // If no more threads are left
+		exit(0);
 	}
 
 	next_thread->state = RUNNING;
 	current_thread = next_thread;
 
-	// preempt_enable();
-
 	setcontext(&current_thread->context);
-	
-	assert(0); // this will never return
+	assert(0);
 }
 
 /* Creates a thread with a function for the thread to run (and args) */

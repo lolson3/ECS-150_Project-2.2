@@ -46,22 +46,42 @@ int sem_destroy(sem_t sem)
 }
 
 /* Takes a semaphore; adds current thread to blocked queue, decreases internal count */
+// int sem_down(sem_t sem)
+// {
+// 	if (sem == NULL) {
+// 		return -1;
+// 	}
+
+// 	// Waits for available resources
+// 	while (sem->internal_count == 0) {
+// 		if (queue_enqueue(sem->blocked_threads, uthread_current()) == -1) {
+// 			return -1;
+// 		}
+// 		uthread_block();
+// 	}
+// 	sem->internal_count--;
+
+// 	return 0;
+// }
+
 int sem_down(sem_t sem)
 {
-	if (sem == NULL) {
+    if (sem == NULL) {
 		return -1;
 	}
 
-	// Waits for available resources
-	while (sem->internal_count == 0) {
-		if (queue_enqueue(sem->blocked_threads, uthread_current()) == -1) {
-			return -1;
-		}
-		uthread_block();
-	}
-	sem->internal_count--;
+    if (sem->internal_count > 0) {
+        sem->internal_count--;
+        return 0;
+    }
 
-	return 0;
+    if (queue_enqueue(sem->blocked_threads, uthread_current()) < 0) {
+        return -1;
+    }
+
+    uthread_block();
+
+    return 0;
 }
 
 /* Releases a semaphore; unblocks next thread in blocked queue, increases internal count */

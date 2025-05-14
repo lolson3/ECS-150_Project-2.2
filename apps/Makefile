@@ -1,6 +1,11 @@
 # Target programs
 programs := \
+	sem_count.x \
+	sem_prime.x \
+	sem_buffer.x \
+	sem_simple.x \
 	queue_tester_example.x \
+	queue_tester.x \
 	uthread_hello.x \
 	uthread_yield.x
 

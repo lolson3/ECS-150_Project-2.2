@@ -33,15 +33,8 @@ queue_t queue_create(void)
 int queue_destroy(queue_t queue)
 {
 	// If queue is NULL/empty, return.
-	if (queue == NULL) {
+	if (queue == NULL || queue->length > 0) {
 		return -1;
-	}
-	// Iterate through the queue and free memory for each node.
-	node_t *curr = queue->head;
-	while (curr != NULL) { // ASK IF THIS IS O(N) NOT CORRECT?
-		node_t *next = curr->next;
-		free(curr);
-		curr = next;
 	}
 	// Free memory for queue itself.
 	free(queue);
