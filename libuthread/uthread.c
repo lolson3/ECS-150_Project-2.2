@@ -63,44 +63,70 @@ void uthread_yield(void)
     uthread_ctx_switch(&curr->context, &next->context);
 }
 
+// void uthread_exit(void)
+// {
+//     struct uthread_tcb *exiting_thread = current_thread;
+//     exiting_thread->state = ZOMBIE;
+    
+//     // Add to zombie queue for later cleanup
+//     if (zombie_queue) {
+//         queue_enqueue(zombie_queue, exiting_thread);
+//     }
+    
+//     // Find next thread to run
+//     struct uthread_tcb *next_thread;
+//     if (queue_dequeue(ready_queue, (void**)&next_thread) < 0) {
+//         // No more threads - clean up everything and exit
+//         if (exiting_thread->stack != NULL) {
+//             uthread_ctx_destroy_stack(exiting_thread->stack);
+//         }
+//         free(exiting_thread); // NOT SURE IF THIS IS THE CAUSE OF THE CORE DUMP
+//         //enqueue_zombie(current_thread);
+
+//         // Clean up any remaining zombies
+//         struct uthread_tcb *zombie;
+//         while (zombie_queue && queue_dequeue(zombie_queue, (void**)&zombie) == 0) {
+//             if (zombie->stack != NULL) {
+//                 uthread_ctx_destroy_stack(zombie->stack);
+//             }
+//             free(zombie);
+//         }
+        
+//         exit(0);
+//     }
+    
+//     // Switch to next thread
+//     next_thread->state = RUNNING;
+//     current_thread = next_thread;
+    
+//     // This doesn't return - we're switching away from the exiting thread
+//     setcontext(&next_thread->context);
+//     assert(0);  // Should never reach here
+// }
+
 void uthread_exit(void)
 {
     struct uthread_tcb *exiting_thread = current_thread;
     exiting_thread->state = ZOMBIE;
-    
+
     // Add to zombie queue for later cleanup
     if (zombie_queue) {
         queue_enqueue(zombie_queue, exiting_thread);
     }
-    
+
     // Find next thread to run
     struct uthread_tcb *next_thread;
     if (queue_dequeue(ready_queue, (void**)&next_thread) < 0) {
-        // No more threads - clean up everything and exit
-        if (exiting_thread->stack != NULL) {
-            uthread_ctx_destroy_stack(exiting_thread->stack);
-        }
-        free(exiting_thread);
-        
-        // Clean up any remaining zombies
-        struct uthread_tcb *zombie;
-        while (zombie_queue && queue_dequeue(zombie_queue, (void**)&zombie) == 0) {
-            if (zombie->stack != NULL) {
-                uthread_ctx_destroy_stack(zombie->stack);
-            }
-            free(zombie);
-        }
-        
+        // No more threads — cleanup happens in uthread_run()
         exit(0);
     }
-    
+
     // Switch to next thread
     next_thread->state = RUNNING;
     current_thread = next_thread;
-    
-    // This doesn't return - we're switching away from the exiting thread
+
     setcontext(&next_thread->context);
-    assert(0);  // Should never reach here
+    assert(0); // Should never reach here
 }
 
 /* Creates a thread with a function for the thread to run (and args) */
