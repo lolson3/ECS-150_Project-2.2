@@ -22,7 +22,7 @@ sem_t sem_create(size_t count)
 	sem->blocked_threads = queue_create(); // Creates queue for blocked threads
 	
 	if (sem->blocked_threads == NULL) { // if blocked_threads fail to create
-		sem_destroy(sem);
+		free(sem);
 		return NULL;
 	}
 
@@ -45,25 +45,6 @@ int sem_destroy(sem_t sem)
 	return 0;
 }
 
-/* Takes a semaphore; adds current thread to blocked queue, decreases internal count */
-// int sem_down(sem_t sem)
-// {
-// 	if (sem == NULL) {
-// 		return -1;
-// 	}
-
-// 	// Waits for available resources
-// 	while (sem->internal_count == 0) {
-// 		if (queue_enqueue(sem->blocked_threads, uthread_current()) == -1) {
-// 			return -1;
-// 		}
-// 		uthread_block();
-// 	}
-// 	sem->internal_count--;
-
-// 	return 0;
-// }
-
 int sem_down(sem_t sem)
 {
 	struct uthread_tcb *curr = uthread_current();
@@ -72,9 +53,13 @@ int sem_down(sem_t sem)
 		return -1;
 	}
 
+	// This while loop handles the corner case correctly:
+	// If a thread wakes up but the resource is no longer available,
+	// it will re-check the condition and block again
 	while (sem->internal_count == 0) {
 		queue_enqueue(sem->blocked_threads, curr);
 		uthread_block();
+		uthread_yield();  // CRITICAL FIX: Actually yield control after blocking
 	}
 	sem->internal_count--;
     return 0;
@@ -87,26 +72,13 @@ int sem_up(sem_t sem)
 		return -1;
 	}
 
-	struct uthread_tcb *next_thread_tcb;
+	sem->internal_count++; // Always increment the count
 
+	struct uthread_tcb *next_thread_tcb;
 	if (queue_dequeue(sem->blocked_threads, (void**)&next_thread_tcb) == 0) {
 		uthread_unblock(next_thread_tcb);
-		uthread_yield();
-	} else {
-		sem->internal_count++;
+		uthread_yield(); // Optional: fairness
 	}
 
 	return 0;
 }
-
-/* There is a very specific corner case that you need to consider in order to implement your semaphore correctly. Here is the scenario:
-
-    Thread A calls down() on a semaphore with a count of 0, and gets blocked.
-    Thread B calls up() on the same semaphore, and gets thread A to be awaken
-    Before thread A can run again, thread C calls down() on the semaphore and snatch the newly available resource.
-
-There are two difficulties with this scenario:
-
-    The semaphore should make sure that thread A will handle the situation correctly when finally resuming its execution. Theoretically, it should go back to sleep if the resource is not longer available by the time it gets to run. If the thread proceeds anyway, then the semaphore implementation is incorrect.
-    If this keeps happening, thread A will eventually be starving (i.e., it never gets access to the resource that it needs to proceed). Ideally, the semaphore implementation should prevent starvation from happening.
-*/
