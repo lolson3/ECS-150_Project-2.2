@@ -66,21 +66,17 @@ int sem_destroy(sem_t sem)
 
 int sem_down(sem_t sem)
 {
+	struct uthread_tcb *curr = uthread_current();
+
     if (sem == NULL) {
 		return -1;
 	}
 
-    if (sem->internal_count > 0) {
-        sem->internal_count--;
-        return 0;
-    }
-
-    if (queue_enqueue(sem->blocked_threads, uthread_current()) < 0) {
-        return -1;
-    }
-
-    uthread_block();
-
+	while (sem->internal_count == 0) {
+		queue_enqueue(sem->blocked_threads, curr);
+		uthread_block();
+	}
+	sem->internal_count--;
     return 0;
 }
 
@@ -95,6 +91,7 @@ int sem_up(sem_t sem)
 
 	if (queue_dequeue(sem->blocked_threads, (void**)&next_thread_tcb) == 0) {
 		uthread_unblock(next_thread_tcb);
+		uthread_yield();
 	} else {
 		sem->internal_count++;
 	}
