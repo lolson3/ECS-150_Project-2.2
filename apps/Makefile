@@ -6,6 +6,7 @@ programs := \
 	sem_simple.x \
 	queue_tester_example.x \
 	queue_tester.x \
+	test_preempt.x \
 	uthread_hello.x \
 	uthread_yield.x
 

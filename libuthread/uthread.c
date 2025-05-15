@@ -32,13 +32,11 @@ static struct uthread_tcb *current_thread = NULL;
 static struct uthread_tcb *main_thread = NULL;
 
 
-struct uthread_tcb *uthread_current(void)
-{
+struct uthread_tcb *uthread_current(void) {
 	return current_thread;
 }
 
-void uthread_yield(void)
-{
+void uthread_yield(void) {
     struct uthread_tcb *curr = current_thread;
     
     // Only re-queue if thread is RUNNING (not BLOCKED or ZOMBIE)
@@ -65,33 +63,7 @@ void uthread_yield(void)
     uthread_ctx_switch(&curr->context, &next->context);
 }
 
-// void uthread_exit(void)
-// {
-//     struct uthread_tcb *exiting_thread = current_thread;
-//     exiting_thread->state = ZOMBIE;
-
-//     // Add to zombie queue for later cleanup
-//     if (zombie_queue) {
-//         queue_enqueue(zombie_queue, exiting_thread);
-//     }
-
-//     // Find next thread to run
-//     struct uthread_tcb *next_thread;
-//     if (queue_dequeue(ready_queue, (void**)&next_thread) < 0) {
-//         // No more threads — cleanup happens in uthread_run()
-//         exit(0);
-//     }
-
-//     // Switch to next thread
-//     next_thread->state = RUNNING;
-//     current_thread = next_thread;
-
-//     setcontext(&next_thread->context);
-//     assert(0); // Should never reach here
-// }
-
-void uthread_exit(void) // fix 3 (both above and this work)
-{
+void uthread_exit(void) {
     struct uthread_tcb *exiting_thread = current_thread;
     exiting_thread->state = ZOMBIE;
 
@@ -112,8 +84,7 @@ void uthread_exit(void) // fix 3 (both above and this work)
 }
 
 /* Creates a thread with a function for the thread to run (and args) */
-int uthread_create(uthread_func_t func, void *arg)
-{
+int uthread_create(uthread_func_t func, void *arg) {
 	// Allocates memory for thread control block
 	struct uthread_tcb *tcb = malloc(sizeof(*tcb));
 	if (tcb == NULL) {
@@ -144,8 +115,9 @@ int uthread_create(uthread_func_t func, void *arg)
 
 // /* Creates first user thread */
 int uthread_run(bool preempt, uthread_func_t func, void *arg) {
-    // Silence unused-parameter warning until you implement preemption
-    (void)preempt;
+    if (preempt) {
+        preempt_start(true)
+    }
 
     // 1) Initialize queues
     ready_queue  = queue_create();
@@ -171,8 +143,6 @@ int uthread_run(bool preempt, uthread_func_t func, void *arg) {
     struct uthread_tcb *zombie;
     while (queue_dequeue(zombie_queue, (void**)&zombie) == 0) {
         if (zombie != main_thread) {
-            fprintf(stderr, "Freeing zombie: %p\n", (void*)zombie);
-            fprintf(stderr, "Zombie->stack: %p\n", (void*)zombie->stack);
             uthread_ctx_destroy_stack(zombie->stack);
             free(zombie);
         }
@@ -187,17 +157,21 @@ int uthread_run(bool preempt, uthread_func_t func, void *arg) {
     queue_destroy(ready_queue);
     queue_destroy(zombie_queue);
 
+    if (preempt) {
+        preempt_stop();
+    }
+
     return 0;
 }
 
-void uthread_block(void)
-{
+/* Sets current thread's state to BLOCKED */
+void uthread_block(void) {
 	struct uthread_tcb *curr = uthread_current();
 	curr->state = BLOCKED;
 }
 
-void uthread_unblock(struct uthread_tcb *uthread)
-{
+/* Sets current thread's state to READY */
+void uthread_unblock(struct uthread_tcb *uthread) {
 	uthread->state = READY;
 	queue_enqueue(ready_queue, uthread);
 }

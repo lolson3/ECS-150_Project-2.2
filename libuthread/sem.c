@@ -11,8 +11,7 @@ struct semaphore {
 };
 
 /* Creates new semaphore and initializes internal values */
-sem_t sem_create(size_t count)
-{
+sem_t sem_create(size_t count) {
 	// Allocate memory for sem struct
 	sem_t sem = malloc(sizeof(*sem));
 	if (sem == NULL) {
@@ -30,8 +29,7 @@ sem_t sem_create(size_t count)
 }
 
 /* Destroys a semaphore if its queue is empty or it is NULL */
-int sem_destroy(sem_t sem)
-{
+int sem_destroy(sem_t sem) {
 	if (sem == NULL || queue_length(sem->blocked_threads) > 0) {
 		return -1; // Failed to destroy semaphore because it is not empty
 	}
@@ -45,8 +43,7 @@ int sem_destroy(sem_t sem)
 	return 0;
 }
 
-int sem_down(sem_t sem)
-{
+int sem_down(sem_t sem) {
 	struct uthread_tcb *curr = uthread_current();
 
     if (sem == NULL) {
@@ -66,8 +63,7 @@ int sem_down(sem_t sem)
 }
 
 /* Releases a semaphore; unblocks next thread in blocked queue, increases internal count */
-int sem_up(sem_t sem)
-{
+int sem_up(sem_t sem) {
 	if (sem == NULL) {
 		return -1;
 	}

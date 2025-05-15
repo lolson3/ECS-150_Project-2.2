@@ -15,8 +15,7 @@ struct queue {
 	int length;
 };
 
-queue_t queue_create(void)
-{
+queue_t queue_create(void) {
 	// Allocating space for the queue structure.
 	queue_t q = malloc(sizeof(*q));
 	if (q == NULL) {
@@ -30,8 +29,7 @@ queue_t queue_create(void)
 	return q;
 }
 
-int queue_destroy(queue_t queue)
-{
+int queue_destroy(queue_t queue) {
 	// If queue is NULL/empty, return.
 	if (queue == NULL || queue->length > 0) {
 		return -1;
@@ -41,26 +39,7 @@ int queue_destroy(queue_t queue)
 	return 0;
 }
 
-// int queue_destroy(queue_t queue) // this passes our test cases
-// {
-// 	if (queue == NULL) {
-// 		return -1;
-// 	}
-
-// 	// Free all nodes, but do NOT free the actual data pointers (owned by user)
-// 	node_t *curr = queue->head;
-// 	while (curr != NULL) {
-// 		node_t *temp = curr;
-// 		curr = curr->next;
-// 		free(temp);
-// 	}
-
-// 	free(queue);
-// 	return 0;
-// }
-
-int queue_enqueue(queue_t queue, void *data)
-{
+int queue_enqueue(queue_t queue, void *data) {
 	// If queue or data are NULL/empty, return.
 	if (queue == NULL || data == NULL) {
 		return -1;
@@ -89,8 +68,7 @@ int queue_enqueue(queue_t queue, void *data)
 }
 
 /* Dequeues item at beginning of list (FIFO) */
-int queue_dequeue(queue_t queue, void **data)
-{
+int queue_dequeue(queue_t queue, void **data) {
 	// If queue or data are NULL/empty, return. If queue empty, return.
 	if (queue == NULL || data == NULL || queue->length == 0) {
 		return -1;
@@ -119,8 +97,7 @@ int queue_dequeue(queue_t queue, void **data)
 }
 
 /* Finds a node with specificed data in the queue list and deletes it */
-int queue_delete(queue_t queue, void *data)
-{
+int queue_delete(queue_t queue, void *data) {
 	// If either queue or data are null/empty, return.
 	if (queue == NULL || data == NULL) {
 		return -1;
@@ -155,8 +132,7 @@ int queue_delete(queue_t queue, void *data)
 }
 
 /* Provides a generic way to call a custom function on each item currently enqueued in the queue */
-int queue_iterate(queue_t queue, queue_func_t func)
-{
+int queue_iterate(queue_t queue, queue_func_t func) {
 	if (queue == NULL || func == NULL) {
 		return -1;
 	}
@@ -171,8 +147,7 @@ int queue_iterate(queue_t queue, queue_func_t func)
 }
 
 /* If queue is not null, returns length of queue */
-int queue_length(queue_t queue)
-{
+int queue_length(queue_t queue) {
 	if (queue == NULL) {
 		return -1;
 	}
