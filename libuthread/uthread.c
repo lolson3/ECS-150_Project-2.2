@@ -29,6 +29,8 @@ struct uthread_tcb {
 };
 
 static struct uthread_tcb *current_thread = NULL;
+static struct uthread_tcb *main_thread = NULL;
+
 
 struct uthread_tcb *uthread_current(void)
 {
@@ -67,66 +69,46 @@ void uthread_yield(void)
 // {
 //     struct uthread_tcb *exiting_thread = current_thread;
 //     exiting_thread->state = ZOMBIE;
-    
+
 //     // Add to zombie queue for later cleanup
 //     if (zombie_queue) {
 //         queue_enqueue(zombie_queue, exiting_thread);
 //     }
-    
+
 //     // Find next thread to run
 //     struct uthread_tcb *next_thread;
 //     if (queue_dequeue(ready_queue, (void**)&next_thread) < 0) {
-//         // No more threads - clean up everything and exit
-//         if (exiting_thread->stack != NULL) {
-//             uthread_ctx_destroy_stack(exiting_thread->stack);
-//         }
-//         free(exiting_thread); // NOT SURE IF THIS IS THE CAUSE OF THE CORE DUMP
-//         //enqueue_zombie(current_thread);
-
-//         // Clean up any remaining zombies
-//         struct uthread_tcb *zombie;
-//         while (zombie_queue && queue_dequeue(zombie_queue, (void**)&zombie) == 0) {
-//             if (zombie->stack != NULL) {
-//                 uthread_ctx_destroy_stack(zombie->stack);
-//             }
-//             free(zombie);
-//         }
-        
+//         // No more threads — cleanup happens in uthread_run()
 //         exit(0);
 //     }
-    
+
 //     // Switch to next thread
 //     next_thread->state = RUNNING;
 //     current_thread = next_thread;
-    
-//     // This doesn't return - we're switching away from the exiting thread
+
 //     setcontext(&next_thread->context);
-//     assert(0);  // Should never reach here
+//     assert(0); // Should never reach here
 // }
 
-void uthread_exit(void)
+void uthread_exit(void) // fix 3 (both above and this work)
 {
     struct uthread_tcb *exiting_thread = current_thread;
     exiting_thread->state = ZOMBIE;
 
-    // Add to zombie queue for later cleanup
-    if (zombie_queue) {
+    if (zombie_queue && exiting_thread->stack != NULL) {
         queue_enqueue(zombie_queue, exiting_thread);
     }
 
-    // Find next thread to run
     struct uthread_tcb *next_thread;
     if (queue_dequeue(ready_queue, (void**)&next_thread) < 0) {
-        // No more threads — cleanup happens in uthread_run()
         exit(0);
     }
 
-    // Switch to next thread
     next_thread->state = RUNNING;
     current_thread = next_thread;
 
     setcontext(&next_thread->context);
-    assert(0); // Should never reach here
+    assert(0);
 }
 
 /* Creates a thread with a function for the thread to run (and args) */
@@ -160,66 +142,51 @@ int uthread_create(uthread_func_t func, void *arg)
 	return 0;
 }
 
-/* Creates first user thread */
-int uthread_run(bool preempt, uthread_func_t func, void *arg)
-{
-    if (ready_queue != NULL) {
-        return -1;
-    }
-    
-    ready_queue = queue_create();
-    zombie_queue = queue_create();  // Create zombie queue
-    if (!ready_queue || !zombie_queue) {
-        return -1;
-    }
-    
-    // Allocate main thread dynamically
-    struct uthread_tcb *main_thread = malloc(sizeof(struct uthread_tcb));
-    if (!main_thread) {
-        return -1;
-    }
-    
-    main_thread->stack = NULL;  // Main thread uses system stack
-    main_thread->state = RUNNING;
-    getcontext(&main_thread->context);
-    
-    current_thread = main_thread;
-    
-    if (uthread_create(func, arg) < 0) {
-        free(main_thread);
-        return -1;
-    }
-    
-    if (preempt) {
-        //preempt_start(true);
-    }
-    
+// /* Creates first user thread */
+int uthread_run(bool preempt, uthread_func_t func, void *arg) {
+    // Silence unused-parameter warning until you implement preemption
+    (void)preempt;
+
+    // 1) Initialize queues
+    ready_queue  = queue_create();
+    zombie_queue = queue_create();
+    if (!ready_queue || !zombie_queue) return -1;
+
+    // 2) Create and track the main thread (uses system stack)
+    current_thread = malloc(sizeof(struct uthread_tcb));
+    if (!current_thread) return -1;
+    current_thread->stack = NULL;
+    getcontext(&current_thread->context);
+    main_thread = current_thread;
+
+    // 3) Create the first user thread; uthread_create enqueues it on ready_queue
+    if (uthread_create(func, arg) < 0) return -1;
+
+    // 4) Run until no more ready threads
     while (queue_length(ready_queue) > 0) {
         uthread_yield();
     }
-    
-    if (preempt) {
-        //preempt_stop();
-    }
-    
-    // Clean up zombies
+
+    // 5) Clean up all zombie threads except the main thread
     struct uthread_tcb *zombie;
     while (queue_dequeue(zombie_queue, (void**)&zombie) == 0) {
-        if (zombie->stack != NULL) {
+        if (zombie != main_thread) {
+            fprintf(stderr, "Freeing zombie: %p\n", (void*)zombie);
+            fprintf(stderr, "Zombie->stack: %p\n", (void*)zombie->stack);
             uthread_ctx_destroy_stack(zombie->stack);
+            free(zombie);
         }
-        free(zombie);
     }
-    
-    // Clean up main thread
+
+    // 6) Finally, free the main thread TCB (its stack is system-managed)
     free(main_thread);
-    
+    main_thread   = NULL;
+    current_thread = NULL;
+
+    // 7) Destroy the queues (they should now be empty)
     queue_destroy(ready_queue);
     queue_destroy(zombie_queue);
-    ready_queue = NULL;
-    zombie_queue = NULL;
-    current_thread = NULL;
-    
+
     return 0;
 }
 

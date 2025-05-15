@@ -30,34 +30,34 @@ queue_t queue_create(void)
 	return q;
 }
 
-// int queue_destroy(queue_t queue)
-// {
-// 	// If queue is NULL/empty, return.
-// 	if (queue == NULL || queue->length > 0) {
-// 		return -1;
-// 	}
-// 	// Free memory for queue itself.
-// 	free(queue);
-// 	return 0;
-// }
-
 int queue_destroy(queue_t queue)
 {
-	if (queue == NULL) {
+	// If queue is NULL/empty, return.
+	if (queue == NULL || queue->length > 0) {
 		return -1;
 	}
-
-	// Free all nodes, but do NOT free the actual data pointers (owned by user)
-	node_t *curr = queue->head;
-	while (curr != NULL) {
-		node_t *temp = curr;
-		curr = curr->next;
-		free(temp);
-	}
-
+	// Free memory for queue itself.
 	free(queue);
 	return 0;
 }
+
+// int queue_destroy(queue_t queue) // this passes our test cases
+// {
+// 	if (queue == NULL) {
+// 		return -1;
+// 	}
+
+// 	// Free all nodes, but do NOT free the actual data pointers (owned by user)
+// 	node_t *curr = queue->head;
+// 	while (curr != NULL) {
+// 		node_t *temp = curr;
+// 		curr = curr->next;
+// 		free(temp);
+// 	}
+
+// 	free(queue);
+// 	return 0;
+// }
 
 int queue_enqueue(queue_t queue, void *data)
 {
