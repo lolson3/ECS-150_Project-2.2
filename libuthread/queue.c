@@ -21,7 +21,7 @@ queue_t queue_create(void) {
 	if (q == NULL) {
 		return NULL;
 	}
-	// Initialize queue values
+	// Initialize queue values.
 	q->head = NULL;
 	q->tail = NULL;
 	q->length = 0;
