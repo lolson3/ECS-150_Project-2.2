@@ -49,19 +49,36 @@ int sem_destroy(sem_t sem) {
 
 int sem_down(sem_t sem) {
 	struct uthread_tcb *curr = uthread_current();
+
 	// Check to make sure sem is not NULL
     if (sem == NULL) {
 		return -1;
 	}
+
+	// Disable preemption while we change sem counts and queues
+	preempt_disable();
+
 	// Wait for resources to become available
 	while (sem->internal_count == 0) {
 		// If thread tries to use sem_down when no resources are available, block it and yield
 		queue_enqueue(sem->blocked_threads, curr);
 		uthread_block();
+
+		// Critical section complete, enable preemption
+		preempt_enable();
+
 		uthread_yield();
 	}
+
+	// Disable preemption while we change sem counts and queues
+	preempt_disable();
+	
 	// Decrement internal count of resources when done waiting
 	sem->internal_count--;
+	
+	// Critical section complete, enable preemption
+	preempt_enable();
+
     return 0;
 }
 
@@ -72,6 +89,9 @@ int sem_up(sem_t sem) {
 		return -1;
 	}
 
+	// Disable preemption while we change sem counts and queues
+	preempt_disable();
+
 	// Increment internal count of sem when resources are available
 	sem->internal_count++;
 	
@@ -81,6 +101,9 @@ int sem_up(sem_t sem) {
 		uthread_unblock(next_thread_tcb);
 		uthread_yield(); // Yielding for fairness
 	}
+
+	// Critical section complete, enable preemption
+	preempt_enable();
 
 	return 0;
 }
