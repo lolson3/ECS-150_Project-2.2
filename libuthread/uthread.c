@@ -147,6 +147,7 @@ int uthread_create(uthread_func_t func, void *arg) {
 int uthread_run(bool preempt, uthread_func_t func, void *arg) {
     if (preempt) {
         preempt_start(true);
+        printf("Preempting started\n");
     }
 
     // Creates ready and zombie queues
