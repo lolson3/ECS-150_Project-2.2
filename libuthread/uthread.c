@@ -40,7 +40,10 @@ struct uthread_tcb *uthread_current(void) {
 /* Yields to the next thread marked as READY */
 void uthread_yield(void) {
     struct uthread_tcb *curr = current_thread;
-    
+    struct uthread_tcb *next;
+
+    // Disable preemption while we change thread states and queues
+    preempt_disable();
     // Only re-queue if thread is RUNNING (not BLOCKED or ZOMBIE)
     if (curr->state == RUNNING) {
         curr->state = READY;
@@ -48,30 +51,35 @@ void uthread_yield(void) {
     }
     
     // Initializes next thread, dequeues from the ready queue
-    struct uthread_tcb *next;
     if (queue_dequeue(ready_queue, (void**)&next) < 0) {
         // If next thread is not READY, exit
         if (curr->state == ZOMBIE || curr->state == BLOCKED) {
             exit(0);  // Nothing else to run
         }
+        // Critical section complete, enable preemption (specifically for this if case)
+        preempt_enable();
         return; // Continue running current thread
     }
-    
-    // Same thread, no need to switch
-    if (next == curr) {
-        return; 
-    }
-    
     // Changes state of next thread to running and moves it to current thread
     next->state = RUNNING;
     current_thread = next;
-    uthread_ctx_switch(&curr->context, &next->context);
+    // Critical section complete, enable preemption
+    preempt_enable();
+    if (next != curr) {
+        uthread_ctx_switch(&curr->context, &next->context);
+    }
 }
 
 /* Exits from current thread and changes its state to ZOMBIE */
 void uthread_exit(void) {
     // Gets current_thread and tracks it as exiting_thread, changes its state to ZOMBIE
     struct uthread_tcb *exiting_thread = current_thread;
+    
+    // Initializes variable for next_thread to switch to
+    struct uthread_tcb *next_thread;
+    
+    // Disable preemption while we change thread states and queues
+    preempt_disable();
     exiting_thread->state = ZOMBIE;
 
     // Checks if zombie_queue is available and adds exiting_thread to it if its stack is not empty
@@ -79,8 +87,6 @@ void uthread_exit(void) {
         queue_enqueue(zombie_queue, exiting_thread);
     }
 
-    // Initializes variable for next_thread to switch to
-    struct uthread_tcb *next_thread;
     if (queue_dequeue(ready_queue, (void**)&next_thread) < 0) {
         exit(0);
     }
@@ -88,6 +94,9 @@ void uthread_exit(void) {
     // Sets state of next_thread to RUNNING and sets it to current_thread
     next_thread->state = RUNNING;
     current_thread = next_thread;
+    
+    // Critical section complete, enable preemption
+    preempt_enable();
 
     // Sets context of current thread to context of the thread it is switching to
     setcontext(&next_thread->context);
@@ -118,13 +127,23 @@ int uthread_create(uthread_func_t func, void *arg) {
 		return -1;
 	}
 
-	// Adds thread to ready queue
-	queue_enqueue(ready_queue, tcb);
-	
+    // Disable preemption while we change thread states and queues
+    preempt_disable();
+
+	// Adds thread to ready queue, checks to make sure it succeeds and frees tcb on failure
+	if (queue_enqueue(ready_queue, tcb) < 0) {
+        free(tcb->stack);
+        free(tcb);
+        preempt_enable(); // Critical section complete, enable preemption (for specific if case)
+        return -1;
+    }
+    // Critical section complete, enable preemption
+    preempt_enable();
+
 	return 0;
 }
 
-// /* Creates first user thread */
+/* Creates first user thread */
 int uthread_run(bool preempt, uthread_func_t func, void *arg) {
     if (preempt) {
         preempt_start(true);
@@ -154,6 +173,7 @@ int uthread_run(bool preempt, uthread_func_t func, void *arg) {
 
     // Creates first user thread and checks for failure
     if (uthread_create(func, arg) < 0) {
+        free(current_thread);
         return -1;
     }
     
@@ -161,6 +181,9 @@ int uthread_run(bool preempt, uthread_func_t func, void *arg) {
     while (queue_length(ready_queue) > 0) {
         uthread_yield();
     }
+
+    // Disable preemption while we change thread states and queues
+    preempt_disable();
 
     // Iterate through zombie queue and free it and its stack
     struct uthread_tcb *zombie;
@@ -171,6 +194,9 @@ int uthread_run(bool preempt, uthread_func_t func, void *arg) {
             free(zombie);
         }
     }
+
+    // Critical section complete, enable preemption
+    preempt_enable();
 
     // Frees the main_thread and current_thread when all other threads are finished
     free(main_thread);
@@ -191,12 +217,24 @@ int uthread_run(bool preempt, uthread_func_t func, void *arg) {
 
 /* Sets current thread's state to BLOCKED */
 void uthread_block(void) {
+    // Disable preemption while we change thread states and queues
+    preempt_disable();
+
 	struct uthread_tcb *curr = uthread_current();
 	curr->state = BLOCKED;
+
+    // Critical section complete, enable preemption
+    preempt_enable();
 }
 
 /* Sets current thread's state to READY */
 void uthread_unblock(struct uthread_tcb *uthread) {
+    // Disable preemption while we change thread states and queues
+    preempt_disable();
+
 	uthread->state = READY;
 	queue_enqueue(ready_queue, uthread);
+
+    // Critical section complete, enable preemption
+    preempt_enable();
 }
